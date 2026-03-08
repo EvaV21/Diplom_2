@@ -1,8 +1,8 @@
 import pytest
 import allure
 
-from src.api import StellarApi
 from src.helpers import generate_user
+from src.api import StellarApi
 
 
 @pytest.fixture
@@ -11,32 +11,65 @@ def api():
 
 
 @pytest.fixture
-def user_data():
-    return generate_user()
+def registered_user(api):
+    user = generate_user()
 
-
-@pytest.fixture
-def registered_user(api, user_data):
     with allure.step("Регистрируем пользователя"):
-        r = api.register(user_data)
-    assert r.status_code == 200, f"register failed: {r.status_code} {r.text}"
-    return user_data
+        response = api.register(user)
+
+    access_token = None
+    if response.status_code == 200:
+        body = response.json()
+        access_token = body.get("accessToken")
+
+    user_with_meta = {
+        "email": user["email"],
+        "password": user["password"],
+        "name": user["name"],
+        "response": response,
+        "access_token": access_token,
+    }
+
+    yield user_with_meta
+
+    if access_token: 
+        with allure.step("Удаляем пользователя после теста"):
+            api.delete_user(access_token)
 
 
 @pytest.fixture
 def token(api, registered_user):
     with allure.step("Логинимся и получаем токен"):
-        r = api.login({"email": registered_user["email"], "password": registered_user["password"]})
-    assert r.status_code == 200, f"login failed: {r.status_code} {r.text}"
-    body = r.json()
-    return body["accessToken"]  
+        response = api.login(
+            {
+                "email": registered_user["email"],
+                "password": registered_user["password"],
+            }
+        )
+
+    access_token = None
+    if response.status_code == 200:
+        body = response.json()
+        access_token = body.get("accessToken")
+
+    return {
+        "response": response,
+        "access_token": access_token,
+    }
 
 
 @pytest.fixture
 def ingredient_ids(api):
     with allure.step("Получаем список ингредиентов"):
-        r = api.get_ingredients()
-    assert r.status_code == 200, f"ingredients failed: {r.status_code} {r.text}"
-    ids = [i["_id"] for i in r.json()["data"]]
-    assert len(ids) > 1
-    return ids[:2]
+        response = api.get_ingredients()
+
+    ids = []
+    if response.status_code == 200:
+        body = response.json()
+        data = body.get("data", [])
+        ids = [item["_id"] for item in data]
+
+    return {
+        "response": response,
+        "ids": ids,
+    }

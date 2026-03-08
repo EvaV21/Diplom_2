@@ -1,7 +1,7 @@
 import allure
 import requests
 
-from src.config import BASE_URL, REGISTER, LOGIN, INGREDIENTS, ORDERS
+from src.config import BASE_URL, REGISTER, LOGIN, INGREDIENTS, ORDERS, USER
 
 
 class StellarApi:
@@ -16,6 +16,10 @@ class StellarApi:
     def get(self, path: str, headers: dict | None = None):
         return self.session.get(BASE_URL + path, headers=headers)
 
+    @allure.step("DELETE {path}")
+    def delete(self, path: str, headers: dict | None = None):
+        return self.session.delete(BASE_URL + path, headers=headers)
+
     def register(self, payload: dict):
         return self.post(REGISTER, json=payload)
 
@@ -29,3 +33,7 @@ class StellarApi:
         headers = {"Authorization": token} if token else None
         body = {"ingredients": ingredients} if ingredients is not None else {}
         return self.post(ORDERS, json=body, headers=headers)
+
+    def delete_user(self, token: str):
+        headers = {"Authorization": token}
+        return self.delete(USER, headers=headers)

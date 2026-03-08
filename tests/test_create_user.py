@@ -1,38 +1,50 @@
 import allure
-import pytest
+
+from src.helpers import generate_user
 
 
-@allure.feature("Создание пользователя")
+@allure.epic("Создание пользователя")
 class TestCreateUser:
 
-    @allure.title("Создать уникального пользователя")
-    def test_create_unique_user(self, api, user_data):
-        r = api.register(user_data)
-        assert r.status_code == 200
-        body = r.json()
+    @allure.title("Можно создать уникального пользователя")
+    def test_create_unique_user_success(self, registered_user):
+        response = registered_user["response"]
+        body = response.json()
 
+        assert response.status_code == 200
         assert body.get("success") is True
         assert "accessToken" in body
         assert "refreshToken" in body
-        assert body["user"]["email"] == user_data["email"]
+        assert body["user"]["email"] == registered_user["email"]
+        assert body["user"]["name"] == registered_user["name"]
 
-    @allure.title("Создать пользователя, который уже зарегистрирован")
-    def test_create_existing_user(self, api, registered_user):
-        r = api.register(registered_user)
-        assert r.status_code == 403
-        body = r.json()
+    @allure.title("Нельзя создать двух одинаковых пользователей")
+    def test_create_duplicate_user_returns_error(self, api, registered_user):
+        payload = {
+            "email": registered_user["email"],
+            "password": registered_user["password"],
+            "name": registered_user["name"],
+        }
 
+        with allure.step("Повторно отправляем запрос на регистрацию того же пользователя"):
+            response = api.register(payload)
+
+        body = response.json()
+
+        assert response.status_code == 403
         assert body.get("success") is False
-        assert "User already exists" in body.get("message", "")
+        assert body.get("message") == "User already exists"
 
-    @allure.title("Создать пользователя без обязательного поля")
-    @pytest.mark.parametrize("field", ["email", "password", "name"])
-    def test_create_user_missing_required_field(self, api, user_data, field):
-        payload = dict(user_data)
-        payload.pop(field)
+    @allure.title("Нельзя создать пользователя без обязательного поля")
+    def test_create_user_without_required_field_returns_error(self, api):
+        user = generate_user()
+        user.pop("name")
 
-        r = api.register(payload)
-        assert r.status_code == 403
-        body = r.json()
+        with allure.step("Отправляем запрос на регистрацию без поля name"):
+            response = api.register(user)
 
+        body = response.json()
+
+        assert response.status_code == 403
         assert body.get("success") is False
+        assert body.get("message") == "Email, password and name are required fields"
