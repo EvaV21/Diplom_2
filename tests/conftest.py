@@ -11,30 +11,36 @@ def api():
 
 
 @pytest.fixture
-def registered_user(api):
+def cleanup_user(api):
+    tokens = []
+
+    yield tokens
+
+    for token in tokens:
+        with allure.step("Удаляем пользователя после теста"):
+            api.delete_user(token)
+
+
+@pytest.fixture
+def registered_user(api, cleanup_user):
     user = generate_user()
 
-    with allure.step("Регистрируем пользователя"):
+    with allure.step("Регистрируем пользователя для предусловия теста"):
         response = api.register(user)
 
     access_token = None
     if response.status_code == 200:
         body = response.json()
         access_token = body.get("accessToken")
+        cleanup_user.append(access_token)
 
-    user_with_meta = {
+    return {
         "email": user["email"],
         "password": user["password"],
         "name": user["name"],
         "response": response,
         "access_token": access_token,
     }
-
-    yield user_with_meta
-
-    if access_token: 
-        with allure.step("Удаляем пользователя после теста"):
-            api.delete_user(access_token)
 
 
 @pytest.fixture
